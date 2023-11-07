@@ -1,0 +1,527 @@
+Refer to lambda.txt for the final code
+
+
+
+
+import ddb from "@aws-sdk/lib-dynamodb";
+import * as dynamodb from "@aws-sdk/client-dynamodb";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+const docClient = new dynamodb.DynamoDBClient();
+
+const ddbDocClient = ddb.DynamoDBDocumentClient.from(docClient, {
+  marshallOptions: {
+    removeUndefinedValues: true,
+  },
+});
+
+import { v4 as uuidv4 } from 'uuid';
+
+export const handler = async (event) => {
+  console.log("event", event);
+  try {
+    if (event.info.fieldName === 'createPet') {
+      const input = event.arguments.input;
+      console.log("Input", input);
+
+      if (!input || !input.name || !input.age || !input.weight || !input.gender || !input.favouriteFood) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ message: 'Missing required parameters' }),
+        };
+      }
+
+      const tableName = 'PROJECT';
+      const ID = uuidv4();
+      console.log("ID", ID);
+
+      const item = {
+        id: ID,
+        name: input.name,
+        age: input.age,
+        weight: input.weight,
+        gender: input.gender,
+        favouriteFood: input.favouriteFood,
+      };
+      console.log("Item", item);
+
+      const params = {
+        TableName: tableName,
+        Item: item,
+      };
+
+      console.log("Params", params);
+
+      const putCommand = new ddb.PutCommand(params);
+      await ddbDocClient.send(putCommand);
+
+      // If pet creation is successful, send an email
+      const sesParams = {
+        Source: "sumukh@mobil80.com",
+        Destination: {
+          ToAddresses: ['abhiramma2022@gmail.com']
+        },
+        Message: {
+          Subject: {
+            Data: 'Pet Created Successfully'
+          },
+          Body: {
+            Text: {
+              Data: 'Your pet has been successfully created!'
+            }
+          }
+        }
+      };
+
+      const ses = new SESClient({ region: 'ap-south-1' });
+      const sesCommand = new SendEmailCommand(sesParams);
+      const sesResult = await ses.send(sesCommand);
+
+      console.log("SES Result", sesResult);
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ message: 'Pet created successfully' }),
+      };
+    }else if (event.info.fieldName === 'feedPet') {
+  const petId = event.arguments.id;
+  console.log("pedId",petId);
+  const tableName = 'PROJECT';
+  const feedingTime = new Date().toISOString();
+
+  const updateParams = { 
+    TableName: tableName,
+    Key: {
+      id: petId,
+    },
+    UpdateExpression: 'SET lastFedAt = :feedingTime',
+    ExpressionAttributeValues: {
+      ':feedingTime': feedingTime,
+    },
+    ReturnValues: 'ALL_NEW',
+  };
+  console.log("Update params:", updateParams);
+
+  const updateCommand = new ddb.UpdateCommand(updateParams);
+  const res = await ddbDocClient.send(updateCommand);
+  console.log("Update result:", res);
+
+  if (res.Attributes) {
+    const sesParams1 = {
+      Source: "sumukh@mobil80.com",
+      Destination: {
+        ToAddresses: ['abhiramma2022@gmail.com']
+      },
+      Message: { 
+        Subject: {
+          Data: 'Pet Fed Successfully'
+        },
+        Body: {
+          Text: {
+            Data: `Your pet has been fed at ${feedingTime}`
+          }
+        }
+      }
+    };
+    console.log("ses",sesParams1);
+
+      const ses = new SESClient({ region: 'ap-south-1' });
+      const sesCommand1 = new SendEmailCommand(sesParams1);
+      const sesResult1 = await ses.send(sesCommand1);
+      console.log("SES Result", sesResult1);
+
+      return res.Attributes;
+    } else {
+      throw new Error('Pet not found');
+    }
+  }
+ else if (event.info.fieldName === 'getPet') {
+      const petId = event.arguments.id;
+console.log("pedId",petId);
+      const tableName = 'PROJECT';
+
+      const getParams = {
+        TableName: tableName,
+        Key: {
+          id: petId,
+        }
+      };
+     console.log("getParams", getParams);
+      const getCommand = new ddb.GetCommand(getParams);
+      const result = await ddbDocClient.send(getCommand);
+      console.log("result:", result);
+
+      if (result.Item) {
+        const petData = {
+          name: result.Item.name,
+          age: result.Item.age,
+          weight: parseFloat(result.Item.weight),
+          gender: result.Item.gender,
+          favouriteFood: result.Item.favouriteFood,
+          lastFedAt: result.Item.lastFedAt,
+        };
+
+        return petData;
+      } else {
+        throw new Error('Pet not found');
+      }
+    } else {
+      throw new Error('Unsupported operation');
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: 'Error processing request' }),
+    };
+}
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// import ddb from "@aws-sdk/lib-dynamodb";
+// import * as dynamodb from "@aws-sdk/client-dynamodb";
+// import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+// const docClient = new dynamodb.DynamoDBClient();
+
+
+// const ddbDocClient = ddb.DynamoDBDocumentClient.from(docClient, {
+//   marshallOptions: {
+//     removeUndefinedValues: true,
+//   },
+// }); 
+
+// import { v4 as uuidv4 } from 'uuid';
+
+// export const handler = async (event) => {
+//   console.log("event", event);
+//   try {
+//     if (event.info.fieldName === 'createPet') {
+//       const input = event.arguments.input; 
+//       console.log("Input", input);
+
+//       if (!input || !input.name || !input.age || !input.weight || !input.gender || !input.favouriteFood) {
+//         return {
+//           statusCode: 400,
+//           body: JSON.stringify({ message: 'Missing required parameters' }),
+//         };
+//       }
+
+//       const tableName = 'PROJECT';
+//       const ID = uuidv4();
+//       console.log("ID", ID);
+
+//       const item = {
+//         id: ID,
+//         name: input.name,
+//         age: input.age,
+//         weight: input.weight,
+//         gender: input.gender,
+//         favouriteFood: input.favouriteFood,
+//       };
+//       console.log("Item", item);
+
+//       const params = {
+//         TableName: tableName,
+//         Item: item,
+//       };
+
+//       console.log("Params", params);
+
+//       const putCommand = new ddb.PutCommand(params);
+//       await ddbDocClient.send(putCommand);
+
+//       // If pet creation is successful, send an email
+//       const sesParams = {
+//         Source: "sumukh@mobil80.com",
+//         Destination: {
+//           ToAddresses: [
+//             'abhiramma2022@gmail.com'
+//           ]
+//         },
+//         Message: {
+//           Subject: {
+//             Data: 'Pet Created Successfully'
+//           },
+//           Body: {
+//             Text: {
+//               Data: 'Your pet has been successfully created!'
+//             }
+//           }
+//         }
+//       };
+
+//       const ses = new SESClient({ region: 'ap-south-1' });
+//       const sesCommand = new SendEmailCommand(sesParams);
+//       const sesResult = await ses.send(sesCommand);
+
+//       console.log("SES Result", sesResult);
+
+//       return {
+//         statusCode: 200,
+//         body: JSON.stringify({ message: 'Pet created successfully' }),
+//       };
+//     } 
+//     else if (event.info.fieldName == 'getPet') {
+//       const petId = event.arguments.id;
+ 
+//       const tableName = 'PROJECT';
+
+//       const getParams = {
+//         TableName: tableName,
+//         Key: {
+//           id: petId, // Use the provided pet ID to retrieve the pet
+//         }
+//       };
+//       console.log("getParams", getParams)
+//       const getCommand = new ddb.GetCommand(getParams);
+//       const result = await ddbDocClient.send(getCommand);
+//       console.log("resulkt:",result)
+
+//       if (result.Item) {
+//         // Serialize the pet data correctly
+//         const petData = {
+//           name: result.Item.name,
+//           age: result.Item.age,
+//           weight: parseFloat(result.Item.weight),
+//           gender: result.Item.gender,
+//           favouriteFood: result.Item.favouriteFood,
+//         };
+
+//         return petData; 
+//       } else {
+//         throw new Error('Pet not found');
+//       }
+//     } else {
+//       // Handle other query/mutation operations here
+//       throw new Error('Unsupported operation');
+//     }
+//   } catch (err) {
+//     console.error('Error:', err);
+//     return {
+//       statusCode: 500,
+//       body: JSON.stringify({ message: 'Error processing request' }),
+//     };
+//   }
+// };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// export const handler = async (event) => {
+//   console.log("event", event);
+
+//   try {
+//     const input = event.arguments.input;
+//     console.log("Input", input);
+
+//     if (!input || !input.name || !input.age || !input.weight || !input.gender || !input.favouriteFood) {
+//       return {
+//         statusCode: 400,
+//         body: JSON.stringify({ message: 'Missing required parameters' }),
+//       };
+//     }
+
+//     const tableName = 'PROJECT';
+//     const ID = uuidv4();
+//     console.log("ID", ID);
+
+//     const item = {
+//       id: ID,
+//       name: input.name,
+//       age: input.age,
+//       weight: input.weight,
+//       gender: input.gender,
+//       favouriteFood: input.favouriteFood,
+//     };
+//     console.log("Item", item);
+
+//     const params = {
+//       TableName: tableName,
+//       Item: item,
+//     };
+
+//     console.log("Params", params);
+
+//     const command = new ddb.PutCommand(params);
+//     await ddbDocClient.send(command);
+
+//     // If pet creation is successful, send an email
+//     const sesParams = {
+//       Source: "sumukh@mobil80.com",
+//       Destination: {
+//         ToAddresses: [
+//           'abhiramma2022@gmail.com'
+//         ]
+//       },
+//       Message: {
+//         Subject: {
+//           Data: 'Pet Created Successfully'
+//         },
+//         Body: {
+//           Text: {
+//             Data: 'Your pet has been successfully created!'
+//           }
+//         }
+//       }
+//     };
+
+//     const ses = new SESClient({ region: 'ap-south-1' });
+//     const sesCommand = new SendEmailCommand(sesParams);
+//     const sesResult = await ses.send(sesCommand);
+
+//     console.log("SES Result", sesResult);
+
+//     return {
+//       statusCode: 200,
+//       body: JSON.stringify({ message: 'Pet created successfully' }),
+//     };
+    
+//     try{
+//     const getParams={
+//       TableName:tableName,
+//       Key:{
+//         id:event.arguments.id
+//       }
+//     }
+//     const result = new GetCommand(getParams);
+//     await ddbDocClient.send(result);
+//     if(res.Item){
+//       return result.Item; // Return the pet data if found
+//     } else {
+//       throw new Error('Pet not found');
+//     }
+//   } catch (err) {
+//     console.error('Error:', err);
+//     throw new Error('Error fetching pet by ID');
+//   };
+//     }
+     
+//     }
+    
+    
+//   } catch (err) {
+//     console.error('Error:', err);
+//     return {
+//       statusCode: 500,
+//       body: JSON.stringify({ message: 'Error creating pet' }),
+//     };
+//   }
+// };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// const PutItemInTable = async (event)=>{
+//   const toInsert = event.arguments.input;
+//   console.log(toInsert);
+//   const Params = {
+//     TableName: "PROJECT",
+//     Item:{
+//       id: uuidv4(),
+//       name: toInsert.name,
+//       age: toInsert.age,
+//       weight: toInsert.weight,
+//       gender: toInsert.gender,
+//       favouriteFood: toInsert.favouriteFood
+//     }
+//   };
+//   const command = new ddb.PutCommand(Params);
+//   await ddbDocClient.send(command);
+  
+// };
+
+
+// export const handler = async (event) => {
+//   console.log("event", event);
+  
+//   await PutItemInTable(event);
+  
+  
+  
+// };
+  
+  

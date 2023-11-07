@@ -1,0 +1,4 @@
+This is a project executed on AWS Lambda with node js 18x as the runtime.
+The lambda is connected with the dynamodb
+AWS App sync is connected to the lambda using resolvers
+AWS App Sync is used to call api

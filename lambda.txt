@@ -1,0 +1,208 @@
+import ddb from "@aws-sdk/lib-dynamodb";
+import * as dynamodb from "@aws-sdk/client-dynamodb";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import { v4 as uuidv4 } from 'uuid';
+
+const docClient = new dynamodb.DynamoDBClient();
+
+const ddbDocClient = ddb.DynamoDBDocumentClient.from(docClient, {
+  marshallOptions: {
+    removeUndefinedValues: true,
+  },
+});
+
+export const handler = async (event) => {
+  console.log("event", event);
+
+  try {
+    if (event.info.fieldName === 'createPet') {
+      const input = event.arguments.input;
+      console.log("Input", input);
+
+      if (!input || !input.name || !input.age || !input.weight || !input.gender || !input.favouriteFood) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ message: 'Missing required parameters' }),
+        };
+      }
+
+      const tableName = 'PROJECT';
+      const ID = uuidv4();
+      console.log("ID", ID);
+
+      const item = {
+        id: ID,
+        name: input.name,
+        age: input.age,
+        weight: input.weight,
+        gender: input.gender,
+        favouriteFood: input.favouriteFood,
+      };
+      console.log("Item", item);
+
+      const params = {
+        TableName: tableName,
+        Item: item,
+      };
+      console.log("Params", params);
+
+      const putCommand = new ddb.PutCommand(params);
+      await ddbDocClient.send(putCommand);
+
+      const sesParams = {
+        Source: "sumukh@mobil80.com",
+        Destination: {
+          ToAddresses: ['abhiramma2022@gmail.com']
+        },
+        Message: {
+          Subject: {
+            Data: 'Pet Created Successfully'
+          },
+          Body: {
+            Text: {
+              Data: 'Your pet has been successfully created!'
+            }
+          }
+        }};
+        const ses = new SESClient({ region: 'ap-south-1' });
+        const sesCommand = new SendEmailCommand(sesParams);
+        const sesResult = await ses.send(sesCommand);
+
+        console.log("SES Result", sesResult);
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({ message: 'Pet created successfully' }),
+        };
+    } else if (event.info.fieldName === 'feedPet') {
+      const petId = event.arguments.input.petId;
+      console.log("petId", petId);
+      const tableName = 'PROJECT';
+      const feedingTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+
+      const updateParams = {
+        TableName: tableName,
+        Key: {
+          id: petId,
+        },
+        UpdateExpression: 'SET lastFedAt = :feedingTime',
+        ExpressionAttributeValues: {
+          ':feedingTime': feedingTime,
+        },
+        ReturnValues: 'ALL_NEW',
+      };
+      console.log("Update params:", updateParams);
+
+      const updateCommand = new ddb.UpdateCommand(updateParams);
+      const res = await ddbDocClient.send(updateCommand);
+      console.log("Update result:", res);
+
+      if (res.Attributes) {
+        // Schedule the feeding alert after 6 hours
+        scheduleFeedingAlert(petId, tableName, res.Attributes.lastFedAt);
+
+        // Send email and other logic here (you can include your SES email code)
+        const sesParams1 = {
+      Source: "sumukh@mobil80.com",
+      Destination: {
+        ToAddresses: ['abhiramma2022@gmail.com']
+      },
+      Message: { 
+        Subject: {
+          Data: 'Pet Fed Successfully'
+        },
+        Body: {
+          Text: {
+            Data: `Your pet has been fed at ${feedingTime}`
+          }
+        }
+      }
+    };
+    console.log("ses",sesParams1);
+
+      const ses = new SESClient({ region: 'ap-south-1' });
+      const sesCommand1 = new SendEmailCommand(sesParams1);
+      const sesResult1 = await ses.send(sesCommand1);
+      console.log("SES Result", sesResult1);
+        
+
+        return res.Attributes;
+      } else {
+        throw new Error('Pet not found');
+      }
+    } else if (event.info.fieldName === 'getPet') {
+      const petId = event.arguments.id;
+      console.log("petId", petId);
+      const tableName = 'PROJECT';
+
+      const getParams = {
+        TableName: tableName,
+        Key: {
+          id: petId,
+        }
+      };
+      console.log("getParams", getParams);
+
+      const getCommand = new ddb.GetCommand(getParams);
+      const result = await ddbDocClient.send(getCommand);
+      console.log("result:", result);
+
+      if (result.Item) {
+        const petData = {
+          name: result.Item.name,
+          age: result.Item.age,
+          weight: parseFloat(result.Item.weight),
+          gender: result.Item.gender,
+          favouriteFood: result.Item.favouriteFood,
+          lastFedAt: result.Item.lastFedAt,
+        };
+
+        return petData; 
+      } else {
+        throw new Error('Pet not found');
+      }
+    } else {
+      throw new Error('Unsupported operation');
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: 'Error processing request' }),
+    };
+  }
+};
+
+async function scheduleFeedingAlert(petId, tableName, lastFedAt) {
+  try {
+    const sixHours = 6 * 60 * 60 * 1000;
+    const lastFedTime = new Date(lastFedAt);
+    const nextScheduledFeedTime = new Date(lastFedTime.getTime() + sixHours);
+    const currentTime = new Date();
+
+    if (nextScheduledFeedTime <= currentTime) {
+      const emailParams = {
+        Source: "sumukh@mobil80.com",
+        Destination: {
+          ToAddresses: ["abhiramma2022@gmail.com"]
+        },
+        Message: {
+          Subject: {
+            Data: 'Feed Your Pet Alert',
+          },
+          Body: {
+            Text: {
+              Data: 'It\'s time to feed your pet!',
+            },
+          },
+        }};
+        const ses = new SESClient({ region: 'ap-south-1' });
+        const emailCommand = new SendEmailCommand(emailParams);
+        const emailResult = await ses.send(emailCommand);
+        console.log("Email sent", emailResult);
+      }
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  }

@@ -1,0 +1,48 @@
+input CreatePetInput {
+	name: String!
+	age: Int!
+	weight: Float!
+	gender: PetGender!
+	favouriteFood: PetFood!
+}
+
+type Pet {
+	name: String!
+	age: Int!
+	weight: Float!
+	gender: PetGender!
+	favouriteFood: PetFood!
+}
+
+enum PetFood {
+	PEDIGREE
+	ROYAL_CANIN
+}
+
+enum PetGender {
+	MALE
+	FEMALE
+}
+
+input feedPet {
+	name: String!
+	age: Int!
+	weight: Float!
+	gender: PetGender!
+	favouriteFood: PetFood!
+}
+
+type Mutation {
+	createPet(input: CreatePetInput!): AWSJSON
+	feedPet(id: ID!): AWSJSON
+}
+
+type Query {
+	listPets: AWSJSON
+	getPet(id: ID!): AWSJSON
+}
+
+schema {
+	query: Query
+	mutation: Mutation
+}
